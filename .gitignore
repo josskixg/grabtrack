@@ -1,0 +1,52 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+build/
+dist/
+*.egg-info/
+
+# Virtual Environment
+.venv/
+venv/
+env/
+ENV/
+
+# Database & Persistent Data
+*.db
+*.sqlite
+*.sqlite3
+links.json
+
+# Tool & Linter Caches
+.ruff_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Editor & OS Artifacts
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Agent & Subagent Artifacts
+.omo/
+.playwright-mcp/
+
+# HAR Network Dumps
+*.har
+
+# Local Secrets & Overrides
+*.env
+*.env.*
+config.local.json
+
+# Dashboard Screenshots & QA artifacts
+dashboard/*.png
+dashboard/_mock.html
+docs/

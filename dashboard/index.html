@@ -1,0 +1,1887 @@
+<!doctype html>
+<html lang="id" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GrabTrack — Live Order & Share-Location Monitor</title>
+<link rel="icon" type="image/svg+xml" href="logo.svg">
+
+<!-- Leaflet.js CDN for Interactive Driver Map -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+<style>
+  :root {
+    /* Base Color Tokens (Dark by default, togglable to light) */
+    --bg: #090d16;
+    --surface: #0f172a;
+    --surface-2: #162036;
+    --surface-hover: #1c2944;
+    --line: #1e293b;
+    --line-subtle: #172033;
+    --line-strong: #334155;
+    --text: #f8fafc;
+    --text-muted: #94a3b8;
+    --text-faint: #64748b;
+
+    /* Semantic States */
+    --accent: #00b14f;
+    --accent-hover: #009944;
+    --accent-glow: rgba(0, 177, 79, 0.15);
+    
+    --amber: #f59e0b;
+    --amber-bg: rgba(245, 158, 11, 0.12);
+    --amber-border: rgba(245, 158, 11, 0.28);
+    
+    --green: #10b981;
+    --green-bg: rgba(16, 185, 129, 0.12);
+    --green-border: rgba(16, 185, 129, 0.28);
+    
+    --red: #f43f5e;
+    --red-bg: rgba(244, 63, 94, 0.12);
+    --red-border: rgba(244, 63, 94, 0.28);
+    
+    --blue: #38bdf8;
+    --blue-bg: rgba(56, 189, 248, 0.12);
+    --blue-border: rgba(56, 189, 248, 0.28);
+    
+    --grey: #94a3b8;
+    --grey-bg: rgba(148, 163, 184, 0.1);
+    --grey-border: rgba(148, 163, 184, 0.2);
+
+    --focus: #38bdf8;
+    --mono: ui-monospace, "Cascadia Code", "Fira Code", Menlo, monospace;
+    --sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    
+    --radius-lg: 14px;
+    --radius-md: 10px;
+    --radius-sm: 6px;
+    --shadow-card: 0 4px 20px -2px rgba(0, 0, 0, 0.35);
+  }
+
+  [data-theme="light"] {
+    --bg: #f8fafc;
+    --surface: #ffffff;
+    --surface-2: #f1f5f9;
+    --surface-hover: #e2e8f0;
+    --line: #e2e8f0;
+    --line-subtle: #f1f5f9;
+    --line-strong: #cbd5e1;
+    --text: #0f172a;
+    --text-muted: #64748b;
+    --text-faint: #64748b;
+
+    --amber: #d97706;
+    --amber-bg: #fef3c7;
+    --amber-border: #fde68a;
+
+    --green: #059669;
+    --green-bg: #d1fae5;
+    --green-border: #a7f3d0;
+
+    --red: #e11d48;
+    --red-bg: #ffe4e6;
+    --red-border: #fecdd3;
+
+    --blue: #0284c7;
+    --blue-bg: #e0f2fe;
+    --blue-border: #bae6fd;
+
+    --grey: #64748b;
+    --grey-bg: #f1f5f9;
+    --grey-border: #cbd5e1;
+
+    --shadow-card: 0 2px 12px rgba(0, 0, 0, 0.05);
+  }
+
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font: 14px/1.55 var(--sans);
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+    display: flex;
+    flex-direction: column;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--focus);
+    outline-offset: 2px;
+  }
+
+  /* Offline Banner */
+  .offline-banner {
+    position: sticky;
+    top: 0;
+    z-index: 1000;
+    background: var(--red-bg);
+    color: var(--red);
+    border-bottom: 1px solid var(--red-border);
+    font: 600 13px/1.4 var(--sans);
+    padding: 8px 16px;
+    text-align: center;
+    backdrop-filter: blur(8px);
+  }
+  .offline-banner[hidden] { display: none; }
+
+  /* App Header */
+  header.site-header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--line);
+    padding: 12px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+  }
+
+  .brand-group {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .brand-logo-svg {
+    width: 34px;
+    height: 34px;
+    flex: none;
+    border-radius: 8px;
+  }
+
+  .brand-title-wrap {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .brand-title {
+    margin: 0;
+    font-size: 17px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .brand-title span.accent {
+    color: var(--accent);
+  }
+
+  .brand-tagline {
+    font-size: 11.5px;
+    color: var(--text-muted);
+    font-family: var(--mono);
+    letter-spacing: -0.01em;
+  }
+
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .telemetry-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 12px;
+    color: var(--text-muted);
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    padding: 5px 11px;
+    border-radius: 999px;
+    font-family: var(--mono);
+  }
+
+  .live-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--green);
+    box-shadow: 0 0 8px var(--green);
+    animation: livePulse 2s infinite ease-in-out;
+  }
+
+  @keyframes livePulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.5; transform: scale(0.85); }
+  }
+
+  .theme-toggle-btn {
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    color: var(--text-muted);
+    border-radius: 8px;
+    width: 34px;
+    height: 34px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s, border-color 0.15s;
+  }
+  .theme-toggle-btn:hover {
+    color: var(--text);
+    border-color: var(--line-strong);
+    background: var(--surface-hover);
+  }
+
+  /* Main Container */
+  .app-container {
+    max-width: 1400px;
+    width: 100%;
+    margin: 0 auto;
+    padding: 24px;
+    flex: 1;
+  }
+
+  /* Form Section: Tambah Link */
+  .add-section {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    padding: 16px 20px;
+    margin-bottom: 24px;
+    box-shadow: var(--shadow-card);
+  }
+
+  .add-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+
+  .add-header h2 {
+    margin: 0;
+    font-size: 13.5px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+  }
+
+  .hint-kbd {
+    font-size: 11px;
+    color: var(--text-faint);
+    font-family: var(--mono);
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .kbd {
+    background: var(--surface-2);
+    border: 1px solid var(--line-strong);
+    border-radius: 4px;
+    padding: 1px 5px;
+    font-size: 10px;
+  }
+
+  .add-form-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .input-wrapper {
+    position: relative;
+    flex: 1 1 360px;
+    min-width: 0;
+  }
+
+  .input-wrapper svg {
+    position: absolute;
+    left: 13px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 16px;
+    height: 16px;
+    color: var(--text-faint);
+    pointer-events: none;
+  }
+
+  .input-wrapper input {
+    width: 100%;
+    height: 42px;
+    padding: 8px 12px 8px 38px;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    color: var(--text);
+    font: 14px var(--sans);
+    outline: none;
+    transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
+  }
+
+  .input-wrapper input:hover {
+    border-color: var(--line-strong);
+  }
+
+  .input-wrapper input:focus {
+    border-color: var(--accent);
+    background: var(--surface);
+    box-shadow: 0 0 0 3px var(--accent-glow);
+  }
+
+  .input-wrapper input::placeholder {
+    color: var(--text-faint);
+  }
+
+  .input-label-field {
+    flex: 0 1 200px;
+    min-width: 140px;
+  }
+
+  .input-label-field input {
+    width: 100%;
+    height: 42px;
+    padding: 8px 14px;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    color: var(--text);
+    font: 14px var(--sans);
+    outline: none;
+    transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
+  }
+
+  .input-label-field input:focus {
+    border-color: var(--accent);
+    background: var(--surface);
+    box-shadow: 0 0 0 3px var(--accent-glow);
+  }
+
+  .btn-submit {
+    height: 42px;
+    padding: 0 24px;
+    background: var(--accent);
+    color: #ffffff;
+    border: 0;
+    border-radius: var(--radius-md);
+    font: 600 14px var(--sans);
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    transition: background 0.15s, transform 0.05s;
+    flex-shrink: 0;
+  }
+
+  .btn-submit:hover {
+    background: var(--accent-hover);
+  }
+
+  .btn-submit:active {
+    transform: scale(0.98);
+  }
+
+  .btn-submit:disabled {
+    opacity: 0.6;
+    cursor: wait;
+  }
+
+  .form-err {
+    display: none;
+    margin-top: 10px;
+    padding: 8px 12px;
+    background: var(--red-bg);
+    border: 1px solid var(--red-border);
+    border-radius: var(--radius-sm);
+    color: var(--red);
+    font-size: 13px;
+  }
+  .form-err.show { display: block; }
+
+  /* Summary Metrics Strip */
+  .metrics-strip {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 20px;
+    padding: 4px 2px;
+    overflow-x: auto;
+  }
+
+  .metric-item {
+    font-size: 12.5px;
+    color: var(--text-muted);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .metric-pill {
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-family: var(--mono);
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  /* Empty State */
+  .empty-state {
+    background: var(--surface);
+    border: 1px dashed var(--line-strong);
+    border-radius: var(--radius-lg);
+    padding: 48px 24px;
+    text-align: center;
+    margin-top: 12px;
+  }
+
+  .empty-state[hidden] { display: none; }
+
+  .empty-radar-icon {
+    width: 64px;
+    height: 64px;
+    margin: 0 auto 16px;
+    opacity: 0.8;
+  }
+
+  .empty-state h3 {
+    margin: 0 0 8px;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .empty-state p {
+    margin: 0 auto 18px;
+    max-width: 480px;
+    color: var(--text-muted);
+    font-size: 13.5px;
+    line-height: 1.6;
+  }
+
+  .empty-tips {
+    display: inline-flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px;
+    font-size: 12px;
+    color: var(--text-faint);
+  }
+
+  .empty-tip {
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    padding: 4px 10px;
+    border-radius: var(--radius-sm);
+  }
+
+  /* Cards Grid */
+  .cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 380px), 1fr));
+    gap: 18px;
+  }
+
+  .cards-grid[hidden] { display: none; }
+
+  .order-card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-card);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    transition: border-color 0.15s, transform 0.15s;
+    position: relative;
+  }
+
+  .order-card:hover {
+    border-color: var(--line-strong);
+  }
+
+  /* Card Header */
+  .card-top {
+    padding: 14px 16px 10px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .card-label-block {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .card-label-title {
+    font-weight: 600;
+    font-size: 14.5px;
+    color: var(--text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    margin: 0;
+  }
+
+  .card-label-subtitle {
+    font-size: 11px;
+    color: var(--text-faint);
+    font-family: var(--mono);
+    margin-top: 1px;
+  }
+
+  /* Status Badge */
+  .status-badge {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font: 600 12px/1 var(--sans);
+    padding: 5px 10px;
+    border-radius: 999px;
+    border: 1px solid transparent;
+    white-space: nowrap;
+  }
+
+  .status-badge::before {
+    content: "";
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: currentColor;
+  }
+
+  .badge-amber {
+    color: var(--amber);
+    background: var(--amber-bg);
+    border-color: var(--amber-border);
+  }
+
+  .badge-green {
+    color: var(--green);
+    background: var(--green-bg);
+    border-color: var(--green-border);
+  }
+
+  .badge-red {
+    color: var(--red);
+    background: var(--red-bg);
+    border-color: var(--red-border);
+  }
+
+  .badge-blue {
+    color: var(--blue);
+    background: var(--blue-bg);
+    border-color: var(--blue-border);
+  }
+
+  .badge-grey {
+    color: var(--grey);
+    background: var(--grey-bg);
+    border-color: var(--grey-border);
+  }
+
+  /* Quick Actions in Card Header */
+  .card-actions {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex: none;
+  }
+
+  .icon-btn {
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--text-muted);
+    border-radius: var(--radius-sm);
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: color 0.15s, background 0.15s, border-color 0.15s;
+  }
+
+  .icon-btn:hover {
+    color: var(--text);
+    background: var(--surface-2);
+    border-color: var(--line);
+  }
+
+  .icon-btn.danger:hover {
+    color: var(--red);
+    background: var(--red-bg);
+    border-color: var(--red-border);
+  }
+
+  /* Delivery Stepper */
+  .progress-stepper {
+    display: flex;
+    align-items: center;
+    padding: 10px 16px 12px;
+    gap: 4px;
+    border-bottom: 1px solid var(--line-subtle);
+  }
+
+  .step-bar {
+    flex: 1;
+    height: 3px;
+    background: var(--line);
+    border-radius: 2px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .step-bar.active {
+    background: var(--accent);
+  }
+
+  .step-bar.done {
+    background: var(--green);
+  }
+
+  .step-bar.cancelled {
+    background: var(--red);
+  }
+
+  /* Key-Value Details */
+  .order-kv {
+    display: grid;
+    grid-template-columns: 105px 1fr;
+    gap: 6px 12px;
+    padding: 14px 16px;
+    font-size: 13px;
+    margin: 0;
+  }
+
+  .order-kv dt {
+    color: var(--text-muted);
+    font-size: 12.5px;
+    margin: 0;
+    display: flex;
+    align-items: center;
+  }
+
+  .order-kv dd {
+    margin: 0;
+    color: var(--text);
+    overflow-wrap: anywhere;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .order-kv dd.mono {
+    font-family: var(--mono);
+    font-size: 12.5px;
+  }
+
+  .copy-chip {
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 2px 7px;
+    background: var(--surface-2);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    transition: border-color 0.15s, background 0.15s;
+    font-family: var(--mono);
+  }
+  .copy-chip:hover {
+    border-color: var(--line-strong);
+    background: var(--surface-hover);
+  }
+
+  .link-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    color: var(--blue);
+    text-decoration: none;
+    font-weight: 500;
+  }
+  .link-pill:hover {
+    text-decoration: underline;
+  }
+
+  .map-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--green);
+    text-decoration: none;
+    font-size: 12px;
+    background: var(--green-bg);
+    border: 1px solid var(--green-border);
+    padding: 2px 7px;
+    border-radius: 4px;
+  }
+  .map-link:hover {
+    text-decoration: underline;
+  }
+
+  /* Interactive Map Component */
+  .card-map-wrapper {
+    margin: 2px 16px 14px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    background: var(--surface-2);
+  }
+
+  .card-map-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 12px;
+    background: var(--surface-2);
+    border-bottom: 1px solid var(--line);
+    font-size: 11.5px;
+    font-family: var(--mono);
+  }
+
+  .map-live-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--green);
+    font-weight: 600;
+  }
+
+  .map-ext-link {
+    color: var(--blue);
+    text-decoration: none;
+    font-size: 11.5px;
+  }
+  .map-ext-link:hover {
+    text-decoration: underline;
+  }
+
+  .card-map {
+    width: 100%;
+    height: 190px;
+    background: var(--surface-2);
+    position: relative;
+    z-index: 10;
+  }
+
+  /* CartoDB tile variant adapts to theme via JS (no CSS invert needed) */
+  [data-theme="dark"] .leaflet-tile-pane {
+    filter: invert(100%) hue-rotate(180deg) brightness(85%) contrast(90%) saturate(80%);
+  }
+
+  /* Custom Driver Pulse Marker */
+  .driver-marker-wrap {
+    position: relative;
+    width: 30px;
+    height: 30px;
+  }
+  .driver-marker-pulse {
+    position: absolute;
+    top: 0; left: 0;
+    width: 30px; height: 30px;
+    border-radius: 50%;
+    background: rgba(0, 177, 79, 0.4);
+    animation: markerPulse 2s infinite ease-out;
+  }
+  .driver-marker-core {
+    position: absolute;
+    top: 5px; left: 5px;
+    width: 20px; height: 20px;
+    background: var(--accent);
+    border: 2px solid #ffffff;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.5);
+  }
+  .driver-marker-core svg {
+    width: 10px;
+    height: 10px;
+    fill: #ffffff;
+  }
+  @keyframes markerPulse {
+    0% { transform: scale(0.6); opacity: 1; }
+    100% { transform: scale(1.6); opacity: 0; }
+  }
+
+  /* Destination (dropoff) pin marker */
+  .dropoff-marker-wrap {
+    position: relative;
+    width: 28px;
+    height: 36px;
+  }
+  .dropoff-pin {
+    width: 28px;
+    height: 28px;
+    background: #f43f5e;
+    border: 2.5px solid #ffffff;
+    border-radius: 50% 50% 50% 0;
+    transform: rotate(-45deg);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .dropoff-pin svg {
+    transform: rotate(45deg);
+    width: 12px;
+    height: 12px;
+    fill: #ffffff;
+  }
+
+  /* Error Banner inside card */
+  .card-err {
+    margin: 0 16px 12px;
+    padding: 8px 12px;
+    background: var(--red-bg);
+    border: 1px solid var(--red-border);
+    border-radius: var(--radius-sm);
+    color: var(--red);
+    font-size: 12.5px;
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+  }
+
+  /* History Accordion */
+  .hist-toggle {
+    margin-top: auto;
+    width: 100%;
+    background: var(--surface-2);
+    border: 0;
+    border-top: 1px solid var(--line);
+    color: var(--text-muted);
+    font: 500 12.5px/1 var(--sans);
+    padding: 11px 16px;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: background 0.15s, color 0.15s;
+  }
+  .hist-toggle:hover {
+    color: var(--text);
+    background: var(--surface-hover);
+  }
+
+  .hist-toggle .chev {
+    font-size: 14px;
+    transition: transform 0.2s ease;
+  }
+  .hist-toggle[aria-expanded="true"] .chev {
+    transform: rotate(90deg);
+  }
+
+  .hist-body {
+    border-top: 1px solid var(--line);
+    max-height: 200px;
+    overflow-y: auto;
+    background: var(--surface-2);
+    font-size: 12px;
+  }
+  .hist-body[hidden] { display: none; }
+
+  .hist-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .hist-item {
+    padding: 8px 16px;
+    border-bottom: 1px solid var(--line-subtle);
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .hist-item:last-child {
+    border-bottom: 0;
+  }
+
+  .hist-meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text-faint);
+  }
+
+  .hist-field-badge {
+    background: var(--blue-bg);
+    color: var(--blue);
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-weight: 600;
+  }
+
+  .hist-diff {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    overflow-x: auto;
+  }
+
+  .diff-old {
+    color: var(--text-faint);
+    text-decoration: line-through;
+  }
+
+  .diff-arrow {
+    color: var(--text-muted);
+  }
+
+  .diff-new {
+    color: var(--text);
+    font-weight: 500;
+  }
+
+  .hist-empty {
+    padding: 14px 16px;
+    color: var(--text-faint);
+    font-style: italic;
+  }
+
+  /* Toast Notification */
+  .toast-container {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    z-index: 10000;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    pointer-events: none;
+  }
+
+  .toast {
+    background: var(--surface);
+    color: var(--text);
+    border: 1px solid var(--line-strong);
+    padding: 10px 16px;
+    border-radius: var(--radius-md);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    pointer-events: auto;
+    animation: toastSlide 0.2s ease-out;
+  }
+
+  @keyframes toastSlide {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  /* Footer */
+  footer.site-footer {
+    padding: 16px 24px;
+    font-size: 12px;
+    color: var(--text-faint);
+    border-top: 1px solid var(--line);
+    background: var(--surface);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .footer-links a {
+    color: var(--text-muted);
+    text-decoration: none;
+    margin-left: 14px;
+  }
+  .footer-links a:hover {
+    color: var(--accent);
+  }
+
+  @media (max-width: 640px) {
+    header.site-header { padding: 12px 16px; }
+    .app-container { padding: 16px; }
+    .add-section { padding: 14px; }
+    .add-form-row { flex-direction: column; }
+    .input-wrapper, .input-label-field, .btn-submit { width: 100%; flex: 1 1 100%; }
+    .order-kv { grid-template-columns: 90px 1fr; }
+    footer.site-footer { flex-direction: column; align-items: flex-start; }
+    .footer-links a { margin-left: 0; margin-right: 14px; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      transition: none !important;
+      animation: none !important;
+    }
+  }
+</style>
+</head>
+<body>
+
+<div class="offline-banner" id="offline" hidden>
+  ⚠ Backend API Offline — Sedang mencoba menghubungkan ulang…
+</div>
+
+<header class="site-header">
+  <div class="brand-group">
+    <svg class="brand-logo-svg" viewBox="0 0 512 512" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect width="512" height="512" rx="120" fill="#0a0f1a"/>
+      <path d="M 352 168 A 112 112 0 1 0 352 344"
+            fill="none" stroke="#00b14f" stroke-width="36" stroke-linecap="round"/>
+      <line x1="256" y1="256" x2="352" y2="256"
+            stroke="#00b14f" stroke-width="36" stroke-linecap="round"/>
+      <line x1="256" y1="200" x2="256" y2="384"
+            stroke="#ffffff" stroke-width="30" stroke-linecap="round"/>
+      <line x1="192" y1="200" x2="320" y2="200"
+            stroke="#ffffff" stroke-width="30" stroke-linecap="round"/>
+    </svg>
+    <div class="brand-title-wrap">
+      <h1 class="brand-title">Grab<span class="accent">Track</span></h1>
+      <span class="brand-tagline">Real-Time Share-Location Telemetry</span>
+    </div>
+  </div>
+
+  <div class="header-actions">
+    <div class="telemetry-status" title="Status sinkronisasi backend">
+      <span class="live-dot"></span>
+      <span>Poll <b id="m-interval">8s</b></span>
+      <span>·</span>
+      <span>Live <b>3s</b></span>
+    </div>
+
+    <button type="button" class="theme-toggle-btn" id="theme-btn" title="Ganti Tema (Gelap / Terang)" aria-label="Ganti Tema">
+      <svg id="theme-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="5"></circle>
+        <line x1="12" y1="1" x2="12" y2="3"></line>
+        <line x1="12" y1="21" x2="12" y2="23"></line>
+        <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+        <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+        <line x1="1" y1="12" x2="3" y2="12"></line>
+        <line x1="21" y1="12" x2="23" y2="12"></line>
+        <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+        <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+      </svg>
+    </button>
+  </div>
+</header>
+
+<div class="app-container">
+  <!-- Form Tambah Link -->
+  <section class="add-section">
+    <div class="add-header">
+      <h2>Pantau Link Baru</h2>
+      <div class="hint-kbd"><span class="kbd">/</span> untuk fokus URL</div>
+    </div>
+    <form id="add-form" autocomplete="off">
+      <div class="add-form-row">
+        <div class="input-wrapper">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+          </svg>
+          <input id="in-url" type="url" required placeholder="https://sharelocation.grab.com/o/…" aria-label="URL share Grab">
+        </div>
+        <div class="input-label-field">
+          <input id="in-label" type="text" placeholder="Label (opsional)" aria-label="Label opsional">
+        </div>
+        <button type="submit" id="add-btn" class="btn-submit">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+          </svg>
+          <span>Pantau</span>
+        </button>
+      </div>
+      <div class="form-err" id="form-err" role="alert"></div>
+    </form>
+  </section>
+
+  <!-- Summary Strip -->
+  <div class="metrics-strip">
+    <div class="metric-item">Total Pantauan <span class="metric-pill" id="m-count">0</span></div>
+    <div class="metric-item">Sedang Aktif <span class="metric-pill" id="m-active">0</span></div>
+    <div class="metric-item">Selesai <span class="metric-pill" id="m-done">0</span></div>
+  </div>
+
+  <!-- Empty State -->
+  <div class="empty-state" id="empty" hidden>
+    <svg class="empty-radar-icon" viewBox="0 0 64 64" fill="none" stroke="currentColor">
+      <circle cx="32" cy="32" r="28" stroke="var(--line-strong)" stroke-width="1.5" />
+      <circle cx="32" cy="32" r="18" stroke="var(--line)" stroke-width="1.5" stroke-dasharray="3 4" />
+      <circle cx="32" cy="32" r="8" stroke="var(--accent)" stroke-width="2" />
+      <line x1="32" y1="4" x2="32" y2="12" stroke="var(--accent)" stroke-width="2" />
+      <line x1="32" y1="32" x2="48" y2="20" stroke="var(--accent)" stroke-width="2" stroke-dasharray="2 3" />
+    </svg>
+    <h3>Belum ada pesanan yang dipantau</h3>
+    <p>Salin link <b>Bagikan Lokasi</b> dari aplikasi Grab saat driver sedang berjalan atau pesanan disiapkan, lalu tempel di formulir di atas.</p>
+    <div class="empty-tips">
+      <span class="empty-tip">💡 Mendukung link sharelocation.grab.com/o/...</span>
+      <span class="empty-tip">⚡ Push update real-time via Telegram Bot</span>
+    </div>
+  </div>
+
+  <!-- Cards Grid -->
+  <main class="cards-grid" id="grid" hidden></main>
+</div>
+
+<!-- Toast Container -->
+<div class="toast-container" id="toast-container"></div>
+
+<footer class="site-footer">
+  <div>GrabTrack · Telemetry Engine v1.0 · Polling internal 3s · Integrasi Telegram Bot</div>
+  <div class="footer-links">
+    <a href="/api/status" target="_blank" rel="noopener">API Status</a>
+    <a href="https://sharelocation.grab.com" target="_blank" rel="noopener">Grab Portal</a>
+  </div>
+</footer>
+
+<script>
+(function () {
+  'use strict';
+
+  var POLL_MS = 3000;
+  var lastRaw = null;
+  var data = { poll_interval: null, links: [] };
+  var expanded = Object.create(null);
+  var submitting = false;
+  var activeMaps = Object.create(null);
+
+  var $ = function (id) { return document.getElementById(id); };
+  var grid = $('grid'), emptyEl = $('empty'), offlineEl = $('offline');
+  var themeBtn = $('theme-btn');
+
+  /* ---- Theme Management ---- */
+  function getPreferredTheme() {
+    var saved = localStorage.getItem('gt_theme');
+    if (saved) return saved;
+    return window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+  }
+
+  function applyTheme(t) {
+    document.documentElement.setAttribute('data-theme', t);
+    localStorage.setItem('gt_theme', t);
+    var icon = $('theme-icon');
+    if (t === 'light') {
+      icon.innerHTML = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>';
+    } else {
+      icon.innerHTML = '<circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>';
+    }
+    updateMapTiles(t);
+  }
+
+  function updateMapTiles(t) {
+    var tileConf = getTileConfig(t);
+    for (var tok in activeMaps) {
+      var item = activeMaps[tok];
+      if (!item || !item.map) continue;
+      // Remove old tiles and add new themed tiles
+      if (item.tiles) { try { item.map.removeLayer(item.tiles); } catch (e) {} }
+      item.tiles = L.tileLayer(tileConf.url, {
+        maxZoom: 19,
+        subdomains: ['a', 'b', 'c'],
+        attribution: tileConf.attribution
+      }).addTo(item.map);
+      item.map.invalidateSize();
+    }
+  }
+
+  applyTheme(getPreferredTheme());
+
+  themeBtn.addEventListener('click', function () {
+    var current = document.documentElement.getAttribute('data-theme') || 'dark';
+    applyTheme(current === 'dark' ? 'light' : 'dark');
+  });
+
+  /* Keyboard shortcut: '/' to focus in-url */
+  window.addEventListener('keydown', function (e) {
+    if (e.key === '/' && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') {
+      e.preventDefault();
+      var input = $('in-url');
+      if (input) {
+        input.focus();
+        input.select();
+      }
+    }
+  });
+
+  /* Toast Helper */
+  function showToast(msg) {
+    var container = $('toast-container');
+    var el = document.createElement('div');
+    el.className = 'toast';
+    el.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg> <span>' + esc(msg) + '</span>';
+    container.appendChild(el);
+    setTimeout(function () {
+      el.style.opacity = '0';
+      el.style.transform = 'translateY(10px)';
+      el.style.transition = 'opacity 0.2s, transform 0.2s';
+      setTimeout(function () { el.remove(); }, 200);
+    }, 2500);
+  }
+
+  /* Base64 decoding helper */
+  function safeB64Decode(str) {
+    if (!str) return '';
+    try {
+      if (str.indexOf('http') === 0) return str;
+      var decoded = atob(str);
+      return decoded.indexOf('http') === 0 ? decoded : str;
+    } catch (e) {
+      return str;
+    }
+  }
+
+  /* Mock mode for visual QA */
+  if (/[?&]mock(=|&|$)/.test(location.search)) {
+    var MOCK_LINKS = /[?&]mock=empty/.test(location.search) ? [] : [
+      {
+        token: 'vgqBXep9zsxOKASSSRRf',
+        label: 'Pesanan Irul',
+        url: safeB64Decode('aHR0cHM6Ly9zaGFyZWxvY2F0aW9uLmdyYWIuY29tL28vdmdxQlhlcDl6c3hPS0FTU1NSUmY='),
+        state: 'ORDER_IN_PREPARE',
+        driver_location: null,
+        eta: 1790166000,
+        booking_code: 'A-9SCF9VVGX5DSAV',
+        last_poll: new Date(Date.now() - 8000).toISOString(),
+        last_change: new Date(Date.now() - 3600000).toISOString(),
+        error: null,
+        history: [
+          { ts: new Date(Date.now() - 3600000).toISOString(), field: 'state', old: 'CONFIRMED', new: 'ORDER_IN_PREPARE' },
+          { ts: new Date(Date.now() - 7200000).toISOString(), field: 'booking_code', old: '', new: 'A-9SCF9VVGX5DSAV' }
+        ]
+      },
+      {
+        token: 'kQm2AbCdEfGh1234',
+        label: 'Makan Siang GrabFood',
+        url: safeB64Decode('aHR0cHM6Ly9zaGFyZWxvY2F0aW9uLmdyYWIuY29tL28va1FtMkFiQ2RFZkdoMTIzNA=='),
+        state: 'DELIVERING',
+        driver_location: { latitude: -6.2088, longitude: 106.8456 },
+        drop_off_location: { lat: -6.1944, lng: 106.8229 },
+        eta: Math.floor(Date.now() / 1000) + 600,
+        booking_code: 'B-11XX22YY33ZZ',
+        last_poll: new Date(Date.now() - 3 * 86400000).toISOString(),
+        last_change: new Date(Date.now() - 86400000).toISOString(),
+        error: null,
+        history: [
+          { ts: new Date(Date.now() - 1000).toISOString(), field: 'state', old: 'ORDER_IN_PREPARE', new: 'DELIVERING' },
+          { ts: new Date(Date.now() - 5000).toISOString(), field: 'driver_location', old: 'null', new: '-6.2088, 106.8456' }
+        ]
+      },
+      {
+        token: 'zz99CancelledTok',
+        label: 'Pesanan batal',
+        url: safeB64Decode('aHR0cHM6Ly9zaGFyZWxvY2F0aW9uLmdyYWIuY29tL28veno5OUNhbmNlbGxlZFRvaw=='),
+        state: 'CANCELLED_BY_CUSTOMER',
+        driver_location: null,
+        eta: null,
+        booking_code: '',
+        last_poll: null,
+        last_change: null,
+        error: 'HTTP 404: share token expired / tidak ditemukan',
+        history: []
+      }
+    ];
+    var mockStore = { poll_interval: 8, links: MOCK_LINKS.slice() };
+    window.__MOCK_FETCH__ = function (path, opts) {
+      opts = opts || {};
+      var method = (opts.method || 'GET').toUpperCase();
+      return new Promise(function (resolve) {
+        setTimeout(function () {
+          if (path.indexOf('/api/status') === 0) {
+            resolve({ ok: true, status: 200, json: function () { return Promise.resolve(JSON.parse(JSON.stringify(mockStore))); } });
+          } else if (method === 'POST' && path === '/api/links') {
+            var body = {};
+            try { body = JSON.parse(opts.body || '{}'); } catch (e) {}
+            if (!body.url || body.url.indexOf('http') !== 0) {
+              resolve({ ok: false, status: 400, json: function () { return Promise.resolve({ error: 'URL tidak valid' }); } });
+              return;
+            }
+            var link = {
+              token: 'mock' + Math.random().toString(36).slice(2, 10),
+              label: body.label || '',
+              url: body.url,
+              state: 'ORDER_IN_PREPARE',
+              driver_location: null,
+              eta: null,
+              booking_code: '',
+              last_poll: new Date().toISOString(),
+              last_change: null,
+              error: null,
+              history: []
+            };
+            mockStore.links.push(link);
+            resolve({ ok: true, status: 200, json: function () { return Promise.resolve(link); } });
+          } else if (method === 'DELETE') {
+            var tok = decodeURIComponent(path.replace(/^\/api\/links\//, ''));
+            mockStore.links = mockStore.links.filter(function (l) { return l.token !== tok; });
+            resolve({ ok: true, status: 200, json: function () { return Promise.resolve({ ok: true }); } });
+          } else {
+            resolve({ ok: false, status: 404, json: function () { return Promise.resolve({ error: 'not found' }); } });
+          }
+        }, 120);
+      });
+    };
+  }
+
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  /* Status Mapping */
+  var STATE_MAP = {
+    'ORDER_IN_PREPARE': { label: 'Disiapkan', class: 'badge-amber', step: 1 },
+    'DRIVER_ASSIGNED': { label: 'Driver Menuju Pickup', class: 'badge-amber', step: 2 },
+    'ON_THE_WAY': { label: 'Menuju Pickup', class: 'badge-amber', step: 2 },
+    'ON_THE_WAY_TO_PICKUP': { label: 'Menuju Pickup', class: 'badge-amber', step: 2 },
+    'PICKED_UP': { label: 'Pesanan Diambil', class: 'badge-green', step: 3 },
+    'DELIVERING': { label: 'Sedang Diantar', class: 'badge-green', step: 3 },
+    'ON_THE_WAY_TO_DROPOFF': { label: 'Menuju Lokasi', class: 'badge-green', step: 3 },
+    'ARRIVED': { label: 'Driver Tiba', class: 'badge-green', step: 4 },
+    'COMPLETED': { label: 'Selesai', class: 'badge-green', step: 4 },
+    'CANCELLED': { label: 'Dibatalkan', class: 'badge-red', step: -1 },
+    'CANCELLED_BY_CUSTOMER': { label: 'Dibatalkan Pelanggan', class: 'badge-red', step: -1 },
+    'CANCELLED_BY_DRIVER': { label: 'Dibatalkan Driver', class: 'badge-red', step: -1 },
+    'CANCELLED_BY_MERCHANT': { label: 'Dibatalkan Merchant', class: 'badge-red', step: -1 },
+    'FAILED': { label: 'Gagal', class: 'badge-red', step: -1 }
+  };
+
+  function parseState(raw) {
+    if (!raw) return { label: 'Menunggu Data', class: 'badge-blue', step: 0 };
+    var s = String(raw).trim();
+    if (STATE_MAP[s]) return STATE_MAP[s];
+    var upper = s.toUpperCase();
+    if (upper.indexOf('CANCEL') !== -1) return { label: 'Dibatalkan', class: 'badge-red', step: -1 };
+    if (upper.indexOf('DELIVER') !== -1) return { label: 'Sedang Diantar', class: 'badge-green', step: 3 };
+    if (upper.indexOf('COMPLET') !== -1) return { label: 'Selesai', class: 'badge-green', step: 4 };
+    if (upper.indexOf('PREPARE') !== -1) return { label: 'Disiapkan', class: 'badge-amber', step: 1 };
+    return { label: s, class: 'badge-grey', step: 0 };
+  }
+
+  function renderStepper(step) {
+    if (step === -1) {
+      return '<div class="progress-stepper" title="Pesanan dibatalkan"><div class="step-bar cancelled"></div></div>';
+    }
+    var html = '<div class="progress-stepper" title="Tahap ' + step + ' dari 4">';
+    for (var i = 1; i <= 4; i++) {
+      var cls = 'step-bar';
+      if (i < step) cls += ' done';
+      else if (i === step) cls += ' active';
+      html += '<div class="' + cls + '"></div>';
+    }
+    html += '</div>';
+    return html;
+  }
+
+  /* Relative time formatter */
+  function relTime(iso) {
+    if (!iso) return '—';
+    var t = Date.parse(iso);
+    if (isNaN(t)) return '—';
+    var sec = Math.floor((Date.now() - t) / 1000);
+    if (sec < 0) sec = 0;
+    if (sec < 60) return 'Baru saja';
+    if (sec < 3600) return Math.floor(sec / 60) + 'm lalu';
+    if (sec < 86400) return Math.floor(sec / 3600) + 'j lalu';
+    if (sec < 2592000) return Math.floor(sec / 86400) + 'h lalu';
+    return Math.floor(sec / 2592000) + 'bln lalu';
+  }
+
+  function fmtEta(sec) {
+    if (sec == null) return '—';
+    var n = Number(sec);
+    if (!isFinite(n) || n <= 0) return '—';
+    try {
+      var nowSec = Math.floor(Date.now() / 1000);
+      var diffMin = Math.round((n - nowSec) / 60);
+      var timeStr = new Date(n * 1000).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+      if (diffMin > 0 && diffMin <= 180) {
+        return timeStr + ' (' + diffMin + ' mnt lagi)';
+      }
+      return timeStr;
+    } catch (e) { return String(sec); }
+  }
+
+  function getCoords(loc) {
+    if (!loc) return null;
+    var lat = loc.latitude != null ? loc.latitude : loc.lat;
+    var lng = loc.longitude != null ? loc.longitude : loc.lng;
+    if (typeof lat !== 'number' || typeof lng !== 'number') return null;
+    return { lat: lat.toFixed(5), lng: lng.toFixed(5) };
+  }
+
+  function sortedHistory(h) {
+    if (!Array.isArray(h) || h.length === 0) return [];
+    return h.slice().sort(function (a, b) {
+      return Date.parse(b && b.ts) - Date.parse(a && a.ts);
+    });
+  }
+
+  /* ---- Map Tile Setup: Esri World (free, no API key, no file:// block) ---- */
+  function getTileConfig(theme) {
+    if (theme === 'light') {
+      return {
+        url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
+        attribution: 'Tiles &copy; <a href="https://www.esri.com" target="_blank" rel="noopener">Esri</a>'
+      };
+    }
+    return {
+      url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
+      attribution: 'Tiles &copy; <a href="https://www.esri.com" target="_blank" rel="noopener">Esri</a>'
+    };
+  }
+
+  function initOrUpdateMaps() {
+    if (typeof L === 'undefined') return;
+    var currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
+    var links = Array.isArray(data.links) ? data.links : [];
+    var currentTokens = Object.create(null);
+
+    for (var i = 0; i < links.length; i++) {
+      var l = links[i];
+      var token = l.token;
+      currentTokens[token] = true;
+      var coords = getCoords(l.driver_location);
+      var container = $('map-' + token);
+      if (!container) continue;
+
+      if (!coords) {
+        if (activeMaps[token]) {
+          try { activeMaps[token].map.remove(); } catch (e) {}
+          delete activeMaps[token];
+        }
+        continue;
+      }
+
+      var lat = parseFloat(coords.lat);
+      var lng = parseFloat(coords.lng);
+
+      var dropCoords = getCoords(l.drop_off_location);
+
+      if (!activeMaps[token]) {
+        try {
+          var dLat = dropCoords ? parseFloat(dropCoords.lat) : null;
+          var dLng = dropCoords ? parseFloat(dropCoords.lng) : null;
+
+          // Center map to midpoint of driver + destination, or just driver
+          var centerLat = (dLat !== null) ? (lat + dLat) / 2 : lat;
+          var centerLng = (dLng !== null) ? (lng + dLng) / 2 : lng;
+
+          var map = L.map('map-' + token, {
+            center: [centerLat, centerLng],
+            zoom: 14,
+            zoomControl: false,
+            attributionControl: true
+          });
+
+          L.control.zoom({ position: 'bottomright' }).addTo(map);
+
+          var tileConf = getTileConfig(currentTheme);
+          var tiles = L.tileLayer(tileConf.url, {
+            maxZoom: 19,
+            subdomains: ['a', 'b', 'c'],
+            attribution: tileConf.attribution
+          }).addTo(map);
+
+          // Driver marker — green pulsing beacon
+          var driverIcon = L.divIcon({
+            className: 'driver-icon-container',
+            html: '<div class="driver-marker-wrap"><div class="driver-marker-pulse"></div><div class="driver-marker-core"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="6"/></svg></div></div>',
+            iconSize: [30, 30],
+            iconAnchor: [15, 15]
+          });
+          var marker = L.marker([lat, lng], { icon: driverIcon }).addTo(map);
+          marker.bindPopup('<b>Driver</b><br>' + coords.lat + ', ' + coords.lng);
+
+          // Destination marker — red map pin
+          var dropMarker = null;
+          var routeLine = null;
+          if (dLat !== null && dLng !== null) {
+            var dropIcon = L.divIcon({
+              className: 'dropoff-icon-container',
+              html: '<div class="dropoff-marker-wrap"><div class="dropoff-pin"><svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg></div></div>',
+              iconSize: [28, 36],
+              iconAnchor: [14, 36]
+            });
+            dropMarker = L.marker([dLat, dLng], { icon: dropIcon }).addTo(map);
+            dropMarker.bindPopup('<b>Tujuan Penerima</b><br>' + dropCoords.lat + ', ' + dropCoords.lng);
+
+            // Dashed route line driver → destination
+            routeLine = L.polyline([[lat, lng], [dLat, dLng]], {
+              color: '#00b14f',
+              weight: 2.5,
+              opacity: 0.75,
+              dashArray: '7 6'
+            }).addTo(map);
+
+            // Fit bounds to show both points with padding
+            map.fitBounds([[lat, lng], [dLat, dLng]], { padding: [28, 28] });
+          }
+
+          activeMaps[token] = {
+            map: map,
+            marker: marker,
+            dropMarker: dropMarker,
+            routeLine: routeLine,
+            tiles: tiles,
+            theme: currentTheme,
+            lat: lat,
+            lng: lng,
+            dLat: dLat,
+            dLng: dLng
+          };
+
+          setTimeout(function () {
+            if (map && map.invalidateSize) map.invalidateSize();
+          }, 200);
+        } catch (err) {
+          console.warn('Map initialization:', err);
+        }
+      } else {
+        var item = activeMaps[token];
+        item.theme = currentTheme;
+        var moved = (item.lat !== lat || item.lng !== lng);
+        if (moved) {
+          item.marker.setLatLng([lat, lng]);
+          item.lat = lat;
+          item.lng = lng;
+          // Update polyline with new driver position
+          if (item.routeLine && item.dLat !== null) {
+            item.routeLine.setLatLngs([[lat, lng], [item.dLat, item.dLng]]);
+          }
+          item.map.panTo([lat, lng]);
+        }
+        item.map.invalidateSize();
+      }
+    }
+
+    for (var tok in activeMaps) {
+      if (!currentTokens[tok]) {
+        try { activeMaps[tok].map.remove(); } catch (e) {}
+        delete activeMaps[tok];
+      }
+    }
+  }
+
+  /* Render Card HTML */
+  function cardHtml(l) {
+    var token = String(l.token || '');
+    var stateObj = parseState(l.state);
+    var coords = getCoords(l.driver_location);
+    var hist = sortedHistory(l.history);
+    var open = !!expanded[token];
+    var displayName = l.label || token;
+    var realUrl = safeB64Decode(l.url);
+
+    var html = '<article class="order-card" data-token="' + esc(token) + '">';
+    
+    // Top Bar
+    html += '<div class="card-top">';
+    html += '<span class="status-badge ' + stateObj.class + '" title="State code: ' + esc(l.state || 'N/A') + '">' + esc(stateObj.label) + '</span>';
+    html += '<div class="card-label-block">';
+    html += '<h3 class="card-label-title" title="' + esc(displayName) + '">' + esc(displayName) + '</h3>';
+    if (l.label && token) {
+      html += '<div class="card-label-subtitle">' + esc(token.slice(0, 10)) + '…</div>';
+    }
+    html += '</div>';
+
+    // Header Actions
+    html += '<div class="card-actions">';
+    if (realUrl) {
+      html += '<a href="' + esc(realUrl) + '" target="_blank" rel="noopener" class="icon-btn" title="Buka tautan asli di Grab">';
+      html += '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"></path><polyline points="15 3 21 3 21 9"></polyline><line x1="10" y1="14" x2="21" y2="3"></line></svg>';
+      html += '</a>';
+    }
+    html += '<button type="button" class="icon-btn danger" data-del="' + esc(token) + '" title="Hapus dari pantauan">';
+    html += '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>';
+    html += '</button>';
+    html += '</div>';
+    html += '</div>';
+
+    // Stepper
+    html += renderStepper(stateObj.step);
+
+    // KV List
+    html += '<dl class="order-kv">';
+    
+    // Booking Code with copy
+    html += '<dt>Booking</dt><dd>';
+    if (l.booking_code) {
+      html += '<span class="copy-chip" data-copy="' + esc(l.booking_code) + '" title="Klik untuk salin kode">' + esc(l.booking_code) + ' <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg></span>';
+    } else {
+      html += '<span style="color:var(--text-faint)">—</span>';
+    }
+    html += '</dd>';
+
+    // Driver location
+    html += '<dt>Driver</dt><dd>';
+    if (coords) {
+      var osmUrl = 'https://www.openstreetmap.org/?mlat=' + coords.lat + '&mlon=' + coords.lng + '#map=16/' + coords.lat + '/' + coords.lng;
+      html += '<a href="' + osmUrl + '" target="_blank" rel="noopener" class="map-link" title="Buka di OpenStreetMap">';
+      html += '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="10" r="3"></circle><path d="M12 21.7C17.3 17 20 13 20 10a8 8 0 1 0-16 0c0 3 2.7 7 8 11.7z"></path></svg> ';
+      html += coords.lat + ', ' + coords.lng + ' ↗</a>';
+    } else {
+      html += '<span style="color:var(--text-faint)">belum ada lokasi</span>';
+    }
+    html += '</dd>';
+
+    // ETA
+    html += '<dt>Estimasi (ETA)</dt><dd>' + esc(fmtEta(l.eta)) + '</dd>';
+
+    // Last Poll
+    html += '<dt>Update</dt><dd data-ts="' + esc(l.last_poll || '') + '">' + esc(relTime(l.last_poll)) + '</dd>';
+
+    // Token
+    html += '<dt>Share Token</dt><dd class="mono">';
+    html += '<span class="copy-chip" data-copy="' + esc(token) + '" title="Klik untuk salin token">' + esc(token.length > 14 ? token.slice(0, 8) + '…' + token.slice(-4) : token) + '</span>';
+    html += '</dd>';
+
+    html += '</dl>';
+
+    // Live Map if driver location exists
+    if (coords) {
+      var osmUrl = 'https://www.openstreetmap.org/?mlat=' + coords.lat + '&mlon=' + coords.lng + '#map=16/' + coords.lat + '/' + coords.lng;
+      html += '<div class="card-map-wrapper">';
+      html += '<div class="card-map-header">';
+      html += '<span class="map-live-badge"><span class="live-dot"></span> Peta Live Driver (' + coords.lat + ', ' + coords.lng + ')</span>';
+      html += '<a href="' + osmUrl + '" target="_blank" rel="noopener" class="map-ext-link">OpenStreetMap ↗</a>';
+      html += '</div>';
+      html += '<div class="card-map" id="map-' + esc(token) + '"></div>';
+      html += '</div>';
+    }
+
+    // Error banner
+    if (l.error != null && l.error !== '') {
+      html += '<div class="card-err"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="flex:none;margin-top:2px"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg><span>' + esc(l.error) + '</span></div>';
+    }
+
+    // History Accordion Button
+    html += '<button type="button" class="hist-toggle" data-hist="' + esc(token) + '" aria-expanded="' + (open ? 'true' : 'false') + '">';
+    html += '<span>Riwayat Status (' + hist.length + ')</span>';
+    html += '<span class="chev">›</span>';
+    html += '</button>';
+
+    // History Body
+    html += '<div class="hist-body" data-hist-body="' + esc(token) + '"' + (open ? '' : ' hidden') + '><ul class="hist-list">';
+    if (hist.length === 0) {
+      html += '<li class="hist-empty">Belum ada perubahan tercatat sejak mulai dipantau.</li>';
+    } else {
+      for (var i = 0; i < hist.length; i++) {
+        var h = hist[i] || {};
+        var timeLabel = h.ts ? new Date(h.ts).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '—';
+        html += '<li class="hist-item">';
+        html += '<div class="hist-meta">';
+        html += '<span class="hist-field-badge">' + esc(h.field || 'event') + '</span>';
+        html += '<span>' + esc(timeLabel) + '</span>';
+        html += '</div>';
+        html += '<div class="hist-diff">';
+        html += '<span class="diff-old">' + esc(h.old == null ? 'kosong' : (typeof h.old === 'object' ? JSON.stringify(h.old) : h.old)) + '</span>';
+        html += '<span class="diff-arrow">→</span>';
+        html += '<span class="diff-new">' + esc(h.new == null ? 'kosong' : (typeof h.new === 'object' ? JSON.stringify(h.new) : h.new)) + '</span>';
+        html += '</div>';
+        html += '</li>';
+      }
+    }
+    html += '</ul></div></article>';
+    return html;
+  }
+
+  function render() {
+    var links = Array.isArray(data.links) ? data.links : [];
+
+    $('m-interval').textContent = data.poll_interval != null ? data.poll_interval + 's' : '—';
+    $('m-count').textContent = String(links.length);
+
+    // Calculate active & done counts
+    var activeCount = 0, doneCount = 0;
+    for (var i = 0; i < links.length; i++) {
+      var st = (links[i].state || '').toUpperCase();
+      if (st.indexOf('COMPLET') !== -1 || st.indexOf('CANCEL') !== -1) {
+        doneCount++;
+      } else {
+        activeCount++;
+      }
+    }
+    $('m-active').textContent = String(activeCount);
+    $('m-done').textContent = String(doneCount);
+
+    if (links.length === 0) {
+      grid.hidden = true;
+      grid.innerHTML = '';
+      emptyEl.hidden = false;
+      return;
+    }
+    emptyEl.hidden = true;
+    grid.hidden = false;
+
+    var html = '';
+    for (var j = 0; j < links.length; j++) {
+      html += cardHtml(links[j] || {});
+    }
+    grid.innerHTML = html;
+
+    // Initialize or update interactive maps for cards with coordinates
+    initOrUpdateMaps();
+  }
+
+  function tickTimes() {
+    var nodes = document.querySelectorAll('[data-ts]');
+    for (var i = 0; i < nodes.length; i++) {
+      var el = nodes[i];
+      el.textContent = relTime(el.getAttribute('data-ts'));
+    }
+  }
+
+  /* Polling Engine */
+  function showOffline() { offlineEl.hidden = false; }
+  function hideOffline() { offlineEl.hidden = true; }
+
+  function apiFetch(path, opts) {
+    if (window.__MOCK_FETCH__) return window.__MOCK_FETCH__(path, opts);
+    return fetch(path, opts);
+  }
+
+  function poll() {
+    apiFetch('/api/status', { cache: 'no-store' })
+      .then(function (r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
+      .then(function (j) {
+        hideOffline();
+        var raw = JSON.stringify(j);
+        if (raw !== lastRaw) {
+          lastRaw = raw;
+          data = {
+            poll_interval: j.poll_interval,
+            links: Array.isArray(j.links) ? j.links : []
+          };
+          render();
+        }
+      })
+      .catch(function () {
+        showOffline();
+      });
+  }
+
+  setInterval(poll, POLL_MS);
+  setInterval(tickTimes, 1000);
+  poll();
+
+  /* Add Form Handler */
+  $('add-form').addEventListener('submit', function (e) {
+    e.preventDefault();
+    if (submitting) return;
+    var urlInput = $('in-url');
+    var labelInput = $('in-label');
+    var url = urlInput.value.trim();
+    var label = labelInput.value.trim();
+    var errEl = $('form-err');
+    errEl.classList.remove('show');
+    if (!url) return;
+
+    submitting = true;
+    $('add-btn').disabled = true;
+
+    var body = { url: url };
+    if (label) body.label = label;
+
+    apiFetch('/api/links', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    })
+      .then(function (r) {
+        return r.json().catch(function () { return {}; }).then(function (j) {
+          if (!r.ok) throw new Error((j && j.error) || ('HTTP ' + r.status));
+          return j;
+        });
+      })
+      .then(function (res) {
+        urlInput.value = '';
+        labelInput.value = '';
+        lastRaw = null;
+        showToast('Link berhasil ditambahkan ke pantauan');
+        poll();
+      })
+      .catch(function (err) {
+        errEl.textContent = err && err.message ? err.message : 'Gagal menambah link.';
+        errEl.classList.add('show');
+      })
+      .then(function () {
+        submitting = false;
+        $('add-btn').disabled = false;
+      });
+  });
+
+  /* Event Delegations (Delete, Copy, History) */
+  document.addEventListener('click', function (e) {
+    // Copy chip
+    var copyChip = e.target.closest('[data-copy]');
+    if (copyChip) {
+      var text = copyChip.getAttribute('data-copy');
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(function () {
+          showToast('Disalin: ' + text);
+        }).catch(function () {
+          prompt('Salin teks berikut:', text);
+        });
+      } else {
+        prompt('Salin teks berikut:', text);
+      }
+      return;
+    }
+
+    // Delete link button
+    var delBtn = e.target.closest('[data-del]');
+    if (delBtn) {
+      var token = delBtn.getAttribute('data-del');
+      var card = delBtn.closest('.order-card');
+      var name = card ? (card.querySelector('.card-label-title') || {}).textContent : token;
+      if (!confirm('Hapus "' + (name || token) + '" dari daftar pantauan?')) return;
+      apiFetch('/api/links/' + encodeURIComponent(token), { method: 'DELETE' })
+        .then(function (r) {
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          delete expanded[token];
+          if (activeMaps[token]) {
+            try { activeMaps[token].map.remove(); } catch (err) {}
+            delete activeMaps[token];
+          }
+          lastRaw = null;
+          showToast('Pantauan dihapus');
+          poll();
+        })
+        .catch(function () {
+          alert('Gagal menghapus link. Coba lagi.');
+        });
+      return;
+    }
+
+    // History accordion toggle
+    var histBtn = e.target.closest('[data-hist]');
+    if (histBtn) {
+      var t = histBtn.getAttribute('data-hist');
+      var open = histBtn.getAttribute('aria-expanded') === 'true';
+      expanded[t] = !open;
+      histBtn.setAttribute('aria-expanded', open ? 'false' : 'true');
+      var bodies = document.querySelectorAll('[data-hist-body]');
+      for (var i = 0; i < bodies.length; i++) {
+        if (bodies[i].getAttribute('data-hist-body') === t) {
+          bodies[i].hidden = open;
+          break;
+        }
+      }
+    }
+  });
+
+})();
+</script>
+</body>
+</html>
